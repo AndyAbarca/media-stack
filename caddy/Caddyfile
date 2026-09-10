@@ -24,11 +24,6 @@
         reverse_proxy bazarr:6767
     }
 
-    @jellyfin path /jellyfin*
-    handle @jellyfin {
-        reverse_proxy jellyfin:8096
-    }
-
     # Wizarr custom de pablokbs con APPLICATION_ROOT=/wizarr.
     @wizarr path /wizarr*
     handle @wizarr {
@@ -41,6 +36,11 @@
     # (ver el puerto en docker-compose.yml). No soporta subpath de forma
     # estable porque sus URLs internas son relativas y se rompen cuando
     # Caddy strippea el prefijo.
+
+    # Jellyfin NO va por aca: se expone directo en :8096 del host (ver
+    # docker-compose.yml). Su API interna (usada por Wizarr y otras
+    # integraciones) devuelve errores de JSON-decode y 401 cuando se le
+    # habla a través del subpath /jellyfin.
 
     # Jellyseerr: redirect interno va a /setup, no respeta subpath.
     @jellyseerr path /jellyseerr*
@@ -60,6 +60,6 @@
 
     # Catch-all 404 con mensaje amigable
     handle {
-        respond "Not found. Try /jellyfin, /sonarr, /radarr, /bazarr, /jellyseerr, /wizarr. qBittorrent esta en :8080. Jackett en :9117. FlareSolverr en :8191." 404
+        respond "Not found. Try /sonarr, /radarr, /bazarr, /jellyseerr, /wizarr. qBittorrent esta en :8080. Jackett en :9117. FlareSolverr en :8191. Jellyfin en :8096." 404
     }
 }

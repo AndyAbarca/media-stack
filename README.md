@@ -1,6 +1,6 @@
 # Media Stack — Jellyfin + *arr auto-hospedado
 
-Stack completo en Docker para correr tu propio servidor de medios en casa: películas, series, música, subtítulos, descargas y una UI estilo Netflix para pedir contenido, todo detrás de un único reverse proxy con routing por path.
+Stack completo en Docker para correr tu propio servidor de medios en casa: películas, series, música, subtítulos, descargas y una UI estilo Netflix para pedir contenido, la mayoría detrás de un único reverse proxy con routing por path (algunas apps van en puerto dedicado, ver más abajo).
 
 ## ¿Qué incluye?
 
@@ -18,7 +18,7 @@ Mirá [`architecture.excalidraw`](architecture.excalidraw) para el diagrama comp
 
 ## Diagrama del stack
 
-Vista rápida de cómo se conectan las piezas. El pelado apunta al server con dos devices (celu y PC), Caddy rutea por subpath a Jellyfin/Sonarr/Radarr/Bazarr, Sonarr/Radarr/Jackett mandan torrents a qBittorrent que escribe en `/data/torrents/`, y Jellyfin escanea la biblioteca final en `/data/media/`.
+Vista rápida de cómo se conectan las piezas. El pelado apunta al server con dos devices (celu y PC), Caddy rutea por subpath a Sonarr/Radarr/Bazarr, Sonarr/Radarr/Jackett mandan torrents a qBittorrent que escribe en `/data/torrents/`, y Jellyfin (puerto dedicado `:8096`) escanea la biblioteca final en `/data/media/`.
 
 ![Diagrama del stack](docs/media-stack-diagram.jpg)
 
@@ -28,7 +28,7 @@ La estructura interna de carpetas sigue la convención de [TRaSH Guides](https:/
 
 - Servidor Linux (o VM) con **Docker 24+** y **Docker Compose v2**
 - ~20 GB libres en disco para configs y descargas (más si vas a tener una biblioteca grande)
-- Puertos **80**, **443**, **8080**, **9117** y **8191** abiertos
+- Puertos **80**, **443**, **8080**, **9117**, **8191** y **8096** abiertos
 - Un dominio público (recomendado para HTTPS) o entradas de DNS local — el stack funciona con `http://localhost` también, pero el HTTPS automático necesita un dominio real
 
 ## Inicio rápido
@@ -68,7 +68,7 @@ La estructura interna de carpetas sigue la convención de [TRaSH Guides](https:/
    bash scripts/configure-base-urls.sh
    ```
 
-   Esto configura la URL base interna de cada app para que responda bajo `/jellyfin`, `/sonarr`, etc. Es idempotente — se puede volver a correr sin problema.
+   Esto configura la URL base interna de las apps *arr (Sonarr, Radarr, Bazarr) para que respondan bajo `/sonarr`, `/radarr`, `/bazarr`. Jellyfin no pasa por este script: corre en su propio puerto (`:8096`), sin BaseUrl. Es idempotente — se puede volver a correr sin problema.
 
 6. Reiniciá las apps para que tomen las nuevas URLs:
 
@@ -80,19 +80,19 @@ La estructura interna de carpetas sigue la convención de [TRaSH Guides](https:/
 
    | App | URL |
    | --- | --- |
-   | Jellyfin | `http://tu-servidor/jellyfin` |
    | Sonarr | `http://tu-servidor/sonarr` |
    | Radarr | `http://tu-servidor/radarr` |
    | Bazarr | `http://tu-servidor/bazarr` |
    | Jellyseerr | `http://tu-servidor/jellyseerr` |
    | Wizarr | `http://tu-servidor/wizarr` |
+   | **Jellyfin** | **`http://tu-servidor:8096`** |
    | **qBittorrent** | **`http://tu-servidor:8080`** |
    | **Jackett** | **`http://tu-servidor:9117`** |
    | **FlareSolverr** | **`http://tu-servidor:8191`** |
 
    La primera vez, cada app te pide crear una cuenta. Mirá [Configuración inicial](#configuración-inicial) más abajo.
 
-> **Por qué Jackett, qBittorrent y FlareSolverr no usan subpath**: emiten URLs internas que no son compatibles con que un proxy strippee el prefijo (Jackett y FlareSolverr porque no tienen setting oficial de base URL, qBittorrent porque sus URLs son relativas en el HTML). Es la práctica estándar exponerlos en puertos dedicados. Ver [docs/DATA_LAYOUT.md](docs/DATA_LAYOUT.md) para más detalle.
+> **Por qué Jackett, qBittorrent, FlareSolverr y Jellyfin no usan subpath**: emiten URLs internas que no son compatibles con que un proxy strippee el prefijo (Jackett y FlareSolverr porque no tienen setting oficial de base URL, qBittorrent porque sus URLs son relativas en el HTML). Jellyfin sí soporta un BaseUrl configurable, pero su API REST (usada por Wizarr, Jellyseerr, apps móviles) devuelve errores de JSON-decode y 401 llamada a través del subpath — por eso corre en su propio puerto (`:8096`) igual que las otras tres. Ver [docs/DATA_LAYOUT.md](docs/DATA_LAYOUT.md) para más detalle.
 
 ## Configuración
 
@@ -177,12 +177,12 @@ docker compose down -v
 
 ## Troubleshooting
 
-- **La app muestra página en blanco o 404 después de `docker compose up`.** Probablemente no se aplicó la config de subpath. Corré `bash scripts/configure-base-urls.sh` y después `docker compose restart`.
+- **La app muestra página en blanco o 404 después de `docker compose up`.** Para Sonarr/Radarr/Bazarr, probablemente no se aplicó la config de subpath: corré `bash scripts/configure-base-urls.sh` y después `docker compose restart`. Para Jellyfin, verificá que estés entrando por `:8096` y no por `/jellyfin` (ya no tiene subpath).
 - **qBittorrent / Jackett piden contraseña y no la aceptás.** Son contraseñas temporales que imprimen los containers en el primer arranque. Sacalas con `docker logs qbittorrent` o `docker logs jackett`.
 - **Caddy devuelve 502 / no llega a las apps.** Verificá que Caddy esté arriba (`docker compose ps caddy`) y que los demás containers estén en la red `proxy` (lo están por default).
 - **Caddy se queja de "Caddyfile is a directory" o todos los subpaths devuelven 404.** El bind mount no encontró el archivo en el host y Docker creó un directorio vacío adentro del contenedor. Asegurate de haber clonado el repo con `caddy/Caddyfile` presente (no debe estar ignorado por `.gitignore`). Si no existe, copialo manualmente a `./caddy/Caddyfile` y reintenta `docker compose up -d --force-recreate caddy`.
 - **Errores de "Permission denied" escribiendo a `/data/torrents` o `/data/media`.** Los valores `PUID`/`PGID` en `docker-compose.yml` no coinciden con tu usuario del host. Actualizalos y reiniciá.
-- **"Address already in use" en los puertos 80/443/8080/9117/8191.** Hay otro servicio ocupando esos puertos. Frenalo o cambialos en `docker-compose.yml`.
+- **"Address already in use" en los puertos 80/443/8080/9117/8191/8096.** Hay otro servicio ocupando esos puertos. Frenalo o cambialos en `docker-compose.yml`.
 - **Los *arr no encuentran las descargas / Jellyfin no muestra archivos nuevos.** Mirá [docs/DATA_LAYOUT.md](docs/DATA_LAYOUT.md): cada *arr necesita el Root Folder correcto y qBittorrent tiene que tener como Default Save Path `/data/torrents`.
 - **Un indexer con CloudflareChallenge falla constantemente.** FlareSolverr no quedó configurado como proxy en Sonarr/Radarr. Revisá el paso 3 de [Configuración inicial](#configuración-inicial).
 
