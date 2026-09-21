@@ -172,6 +172,26 @@ services:
       # terminados a /data/media vía hardlink + delete del original.
       - ${DATA_DIR:-./data}/torrents:/data/torrents
 
+  # === Real-Debrid client (downloader adicional, sin VPN) ===
+  # No hace P2P — solo HTTPS directo contra la API de Real-Debrid, por eso NO
+  # comparte el namespace de red de gluetun. Usa la red `proxy` como
+  # Sonarr/Radarr para que puedan alcanzarlo.
+  rdtclient:
+    image: rogerfar/rdtclient
+    container_name: rdtclient
+    restart: unless-stopped
+    ports:
+      - "6500:6500"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Mendoza
+    volumes:
+      - ${CONFIG_DIR:-./config}/rdtclient:/data/db
+      - ${DATA_DIR:-./data}/torrents:/data/torrents
+    networks:
+      - proxy
+
   # === Media server ===
   jellyfin:
     image: lscr.io/linuxserver/jellyfin:latest
