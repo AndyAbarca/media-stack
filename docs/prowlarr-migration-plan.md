@@ -2,7 +2,8 @@
 
 ## Status (2026-09-28)
 Phase 0 (backups) and Phase A (blockers) **done**; details and fixes in `docs/TROUBLESHOOTING.md`.
-Next: Phase B (add Prowlarr) — waiting for go-ahead.
+**Phases B–F on hold (decision 2026-09-28): Prowlarr is not being installed for now; Jackett stays.**
+Resume from Phase B if that changes. Re-check the diagnosis first, since state has changed since 2026-09-27.
 
 ## ▶ EXECUTION SCOPE (approved 2026-09-27): Phase 0 + Phase A ONLY, then STOP and report
 - First save this full plan as `docs/prowlarr-migration-plan.md` (for resuming at Phase B later;

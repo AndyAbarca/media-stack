@@ -20,6 +20,23 @@ downloader adicional.
 - rdt-client (Real-Debrid) ya está sumado, levantado y configurado como
   Download Client en Radarr y Sonarr con Priority 1; qBittorrent quedó en
   Priority 2 (backup vía VPN).
+- Config de rdt-client validada (2026-09-28): Download path y **Mapped path =
+  `/data/torrents`** (tiene que ser absoluto, es lo que ve Sonarr/Radarr),
+  Connection Timeout 30000, 2 conexiones por descarga, Minimum free space 2 GB.
+  Sus imports son *moves* atómicos, no hardlinks (Real-Debrid seedea, rdtclient
+  no). Real-Debrid a veces rechaza releases con "Infringing file": hay que
+  sacarlos de la cola con blocklist y elegir otro.
+- Radarr (2026-09-28): perfiles "Any" y "HD-1080p" topean en Bluray-1080p (sin
+  Remux ni 2160p); "Any" tiene Language=Any + CF "MULTi / Dual Audio" (+100).
+  Sonarr y Radarr con Minimum Free Space = 2048 MB.
+- Disco `/data` (ext4, `/dev/sdb1`): la reserva de root (5%) topea a los
+  containers (UID 1000) en ~95%. Decisión: dejarlo así, no cambiar con tune2fs.
+- Jellyfin Web no reproduce REMUX con DTS/PGS (Scary Movie 2000); la app de
+  escritorio (Jellyfin Media Player) sí.
+- Historial de problemas y soluciones: `docs/TROUBLESHOOTING.md`. Leerlo antes
+  de diagnosticar algo que "no descarga" o "no importa".
+- Git: `main` trackea `upstream` (Pelado-Nerdworks). Pushear siempre con
+  `git push origin main` explícito, nunca al upstream.
 - `./data` en el repo es un symlink a `/data/Streaming` (mount externo del
   host), no un directorio real — tenerlo en cuenta antes de asumir rutas o
   espacio libre en el filesystem del repo. Existe también `data.bak/`
@@ -47,7 +64,10 @@ downloader adicional.
   contra la API de Real-Debrid — por eso va en la red `proxy` normal, SIN
   pasar por gluetun/VPN. Monta el mismo `${DATA_DIR}/torrents` que usa
   qBittorrent para que los *arr encuentren los archivos igual.
-- Jackett en vez de Prowlarr (decisión tomada).
+- Jackett en vez de Prowlarr (decisión tomada). La migración a Prowlarr se
+  diagnosticó y planificó (`docs/prowlarr-migration-plan.md`), pero **está en
+  pausa por decisión del usuario (2026-09-28)**. No instalar Prowlarr ni
+  proponerlo de nuevo salvo que se pida.
 - Layout TRaSH Guides: un solo volumen `/data` compartido entre qBittorrent,
   rdt-client y los *arr, para hardlinks + moves atómicos.
 - PUID/PGID=1000, TZ=America/Argentina/Mendoza — hardcodeados por servicio en

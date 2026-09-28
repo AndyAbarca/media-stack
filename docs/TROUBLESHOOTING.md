@@ -51,8 +51,10 @@ Windows). Reproduce DTS y PGS de forma nativa con mpv, sin que el servidor
 convierta nada.
 
 **Prevención.** Evitar REMUX en la biblioteca. Además de pesar mucho, fuerzan
-transcode o direct-stream en clientes web y TVs. Pendiente: sacar REMUX/2160p
-del perfil "Any" de Radarr o mover las películas a "HD-1080p".
+transcode o direct-stream en clientes web y TVs. **Aplicado (2026-09-28):**
+los perfiles "Any" y "HD-1080p" de Radarr llegan hasta Bluray-1080p, sin
+Remux-1080p ni 2160p. El archivo actual de Scary Movie (REMUX) queda como está:
+Radarr no lo reemplaza solo, porque un Bluray-1080p no cuenta como "mejora".
 
 ---
 
@@ -82,12 +84,17 @@ REMUX 2160p (63 GB) y Batman Knightfall REMUX 2160p (52 GB) con 47 GB libres.
 
 **Prevención.**
 - Límite duro: ext4 reserva 5% del disco para root y los containers corren como
-  UID 1000, así que nunca pueden llenar más de ~95% de `/data`. Para moverlo a
-  97%: `sudo tune2fs -m 3 /dev/sdb1` (reversible con `-m 5`). **No aplicado.**
-- Límite blando: rdtclient `MinimumFreeSpaceGB = 2`, que pausa las descargas.
-  Sonarr/Radarr "Minimum Free Space" sigue en 100 MB (sugerido: 2048).
-- Pendiente: capar el perfil "Any" a 1080p y sumar el CF de TRaSH "Upscaled"
-  con puntaje negativo (Radarr eligió un "AI Upscale" 2160p para Scary Movie 2).
+  UID 1000, así que nunca pueden llenar más de ~95% de `/data`. Se evaluó
+  moverlo a 97% (`sudo tune2fs -m 3 /dev/sdb1`). **Decisión: dejarlo en 95%.**
+- Límites blandos (aplicados):
+  - rdtclient `MinimumFreeSpaceGB = 2`: pausa las descargas.
+  - Sonarr y Radarr "Minimum Free Space" = **2048 MB**: rechazan un release si
+    importarlo dejaría menos de eso libre (chequeo por release, no suma
+    concurrentes).
+- Perfiles de Radarr (aplicado 2026-09-28): "Any" y "HD-1080p" topean en
+  Bluray-1080p, sin Remux-1080p, 2160p ni BR-DISK.
+- Pendiente opcional: CF de TRaSH "Upscaled" con puntaje negativo. Ya no es
+  crítico porque los upscales son 2160p y el tope es 1080p.
 
 ---
 
@@ -200,8 +207,8 @@ tiene este campo, por eso ahí no pasaba.
 +100, para preferir releases con varios audios. Minimum CF score = 0, así que
 funciona como preferencia, no como filtro.
 
-**Pendiente.** El CF solo tiene puntaje en el perfil "Any". En "HD-1080p"
-puntúa 0.
+**Pendiente (opcional).** El CF solo tiene puntaje en el perfil "Any". En
+"HD-1080p" (Supergirl, Batman Knightfall) puntúa 0.
 
 ---
 
@@ -233,8 +240,11 @@ Completed" activado, así que limpian solos cuando se alcanza el límite
 
 - **dontorrent** (Jackett) caído desde hace días: `todotorrents.org` devuelve
   Error 522.
-- **1337x** falla porque FlareSolverr no está configurado en Jackett. Se resuelve
-  en la migración a Prowlarr (ver `docs/prowlarr-migration-plan.md`).
+- **1337x** falla porque FlareSolverr no está configurado en Jackett
+  (`FlareSolverrUrl` vacío). Se puede arreglar en Jackett (Dashboard →
+  FlareSolverr API URL = `http://flaresolverr:8191`) sin migrar a Prowlarr.
 - Categorías mal mapeadas en los indexers de Jackett (TPB con categorías de anime
-  en Sonarr, etc.). También se resuelve con Prowlarr.
+  en Sonarr, etc.) y URLs apuntando a la IP del host en vez de `jackett:9117`.
+- La migración a Prowlarr resolvería los dos puntos anteriores, pero **está en
+  pausa por decisión (2026-09-28)**. Ver `docs/prowlarr-migration-plan.md`.
 - "Allowed Hosts" sin configurar en Sonarr/Radarr (warning).
