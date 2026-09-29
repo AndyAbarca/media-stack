@@ -24,6 +24,48 @@ stat -c '%i links=%h %n' <archivo>
 
 ---
 
+## 2026-09-28 — Bazarr no baja subtítulos
+
+**Síntoma.** Batman Knightfall (y todo lo demás) sin subtítulos externos. La UI
+de Bazarr mostraba "subtítulos", pero en disco no había ningún `.srt`.
+
+**Causa (tres problemas encadenados).**
+1. **Ninguna película ni serie tenía perfil de idioma** (`profileId = None`) y
+   el perfil por defecto estaba activado pero vacío. Bazarr no busca nada para
+   contenido sin perfil. El historial tenía 0 descargas.
+2. **OpenSubtitles.com rechaza el login**: `AuthenticationError 'Login
+   failed'`. Bazarr lo bloquea (throttle) por 12 horas.
+3. Los proveedores "sin cuenta" que se probaron no sirven desde acá:
+   - Podnapisi: dominio muerto (NXDOMAIN, incluso en el DNS de Cloudflare).
+   - Subdivx: 403 por Cloudflare, y Bazarr 1.6.2 ni siquiera trae el módulo.
+
+Lo que se veía en la UI eran pistas **embebidas** dentro de los `.mkv`, no
+descargas.
+
+**Solución aplicada.**
+- Perfil 1 como default para series y películas, y asignado a las 6 películas y
+  3 series (API: `POST /api/movies` y `/api/series` con `profileid`).
+- Proveedores: `opensubtitlescom`, `embeddedsubtitles`, `yifysubtitles`
+  (películas) y `gestdown` (series, espejo de Addic7ed).
+- Primer subtítulo real bajado: `Scary Movie 3 … .en.srt` (YIFY).
+
+**Causa del login fallido (resuelta).** La cuenta era de **opensubtitles.org**,
+no de **opensubtitles.com**. Son sitios distintos y Bazarr usa `.com`. Se creó
+una cuenta en `.com` y el proveedor quedó en `Good`. Para probar credenciales:
+entrar con los mismos datos a https://www.opensubtitles.com/en/login. En Bazarr
+va el **usuario**, no el email. Después de corregirlas: System → Providers →
+"Reset", para no esperar las 12 horas de throttle.
+
+**Pendiente (opcional).** El perfil se llama "English" pero tiene `en` + `ea`
+(español latino). YIFY casi no tiene "latino": ofrece "Spanish" (`es`). Si se
+acepta castellano, sumar `es` al perfil.
+
+**Verificación.**
+`find data/media -iname '*.srt'` tiene que listar archivos. En Bazarr, la
+pestaña **History** tiene que mostrar descargas con proveedor.
+
+---
+
 ## 2026-09-27 — Scary Movie (2000) no reproduce en Jellyfin Web
 
 **Síntoma.** La película queda cargando para siempre en el navegador. Otras
@@ -95,6 +137,13 @@ REMUX 2160p (63 GB) y Batman Knightfall REMUX 2160p (52 GB) con 47 GB libres.
   Bluray-1080p, sin Remux-1080p, 2160p ni BR-DISK.
 - Pendiente opcional: CF de TRaSH "Upscaled" con puntaje negativo. Ya no es
   crítico porque los upscales son 2160p y el tope es 1080p.
+- Hueco conocido, **no corregido por decisión (2026-09-28)**: en Radarr
+  "Bluray-1080p" no tiene tamaño máximo (Settings → Quality), así que algún
+  encode puede pesar 25–40 GB. El resto de las calidades 1080p topean en
+  100 MB/min (~11.7 GB para 2 h). Se acepta el riesgo hasta migrar al hardware
+  nuevo: `/data` es un disco aparte del sistema, así que llenarlo no congela la
+  VM, y lo peor que pasa es que una descarga falle y haya que borrarla.
+- Seerr pide todo con el perfil "Any" (id 1), tanto en Radarr como en Sonarr.
 
 ---
 
