@@ -24,6 +24,58 @@ stat -c '%i links=%h %n' <archivo>
 
 ---
 
+## 2026-10-17 — No se puede entrar a Seerr (Jellyfin sí anda)
+
+**Síntoma.** El login en Seerr con el usuario de Jellyfin falla, aunque esas
+mismas credenciales entran a Jellyfin. Cambiar la contraseña no sirve.
+
+**Causa.** Seerr tenía configurado Jellyfin como `http://jellyfin:8096` **con
+`urlBase: "/jellyfin"`**, pero Jellyfin no tiene Base URL (`<BaseUrl></BaseUrl>`
+vacío en `config/jellyfin/network.xml`) y sirve en la raíz. Cada llamada de
+Seerr a la API de Jellyfin daba 404: tanto el login como el sync de
+bibliotecas. Seerr no valida contraseñas: se las pasa a Jellyfin, así que el
+pedido nunca llegaba a validarse. Probablemente un resto del primer setup
+(el subpath `/jellyfin` en Caddy se descartó).
+
+**Por qué "antes andaba".** El 404 estaba en los logs desde el **2026-09-09**
+(más de 10.000 veces). Hasta ahora se entraba con una sesión guardada
+(duran unos 30 días). Cuando venció, hubo que loguearse de nuevo y apareció el
+problema. Efecto colateral: el sync estuvo cortado más de un mes, así que Seerr
+no sabía qué contenido ya estaba en Jellyfin.
+
+**Evidencia.**
+- Logs: `[Jellyfin API]: Something went wrong while authenticating with the
+  Jellyfin server: Request failed with status code 404`. Si la contraseña
+  estuviera mal sería **401**, no 404.
+- Desde adentro de Seerr (la imagen no trae curl, se usa `node`):
+  ```bash
+  docker exec jellyseerr node -e "fetch('http://jellyfin:8096/jellyfin/System/Info/Public').then(r=>console.log(r.status))"  # 404
+  docker exec jellyseerr node -e "fetch('http://jellyfin:8096/System/Info/Public').then(r=>console.log(r.status))"           # 200
+  ```
+
+**Solución aplicada.** Sin acceso a la UI, se editó el archivo:
+1. Backup: `config/jellyseerr/settings.json.bak-2026-10-17`.
+2. `docker compose stop jellyseerr`. Con Seerr corriendo, al guardar puede
+   pisar el archivo con lo que tiene en memoria.
+3. En `config/jellyseerr/settings.json`, sección `jellyfin`: `"urlBase":
+   "/jellyfin"` → `"urlBase": ""` (no se tocó nada más).
+4. `docker compose start jellyseerr`.
+
+**Verificación.**
+- Login de prueba con un usuario inexistente
+  (`POST /api/v1/auth/jellyfin`) → `401 INVALID_CREDENTIALS`. Jellyfin
+  responde, ya no hay 404.
+- Scan de las 05:30 → `Recently Added Scan Complete` (detectó Coyote vs. Acme,
+  Scary Movie 1/2/3, Supergirl, etc.).
+- Recomendado una vez: Settings → Jellyfin → "Scan Libraries" (scan completo,
+  porque el automático solo mira lo agregado hace poco).
+
+**Prevención.** El "URL Base" de Seerr (Settings → Jellyfin) tiene que ser
+igual al "Base URL" de Jellyfin (Dashboard → Networking). Hoy los dos están
+vacíos. Si los logs de Seerr muestran `Sync interrupted`, revisar esto primero.
+
+---
+
 ## 2026-09-28 — Bazarr no baja subtítulos
 
 **Síntoma.** Batman Knightfall (y todo lo demás) sin subtítulos externos. La UI
