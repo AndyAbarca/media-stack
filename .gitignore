@@ -5,3 +5,7 @@ data/
 .DS_Store
 .env
 *.swp
+
+# Symlink al mount externo y backup local (no van al repo)
+data
+data.bak/
