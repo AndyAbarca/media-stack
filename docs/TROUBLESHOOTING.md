@@ -24,6 +24,74 @@ stat -c '%i links=%h %n' <archivo>
 
 ---
 
+## 2026-10-25 — Real-Debrid vencido: muchas versiones de la misma peli + 429
+
+**Síntoma.** Se pidieron las películas de Batman desde Seerr. En rdt-client
+aparecen muchas versiones de la misma película (8 de *Mask of the Phantasm*,
+18 de *Knightfall Part 1*). Después, rdt-client loguea `Rate limit cooldown
+active for api.real-debrid.com`.
+
+**Causa.** La cuenta de Real-Debrid **dejó de ser premium** (`type: free`).
+El endpoint de torrents de RD es solo para premium, así que cada magnet se
+rechazaba. A partir de ahí, una cascada:
+
+1. rdt-client: `RDNET.RealDebridException: Permission denied` en
+   `AddMagnetAsync` → `Could not add to provider: Permission denied`.
+2. Radarr ve que no pudo mandar el release (`Couldn't add release ...`) y
+   **prueba el siguiente** de la lista, y el siguiente: 8 releases en 25 s.
+3. rdt-client guarda cada intento fallido y lo reintenta una vez
+   (`TorrentRetryAttempts = 1`). De ahí las "muchas versiones".
+4. Tantas llamadas a la API terminan en **HTTP 429**: el rate limit es un
+   efecto secundario, no la causa.
+
+qBittorrent (Priority 2) no entró a cubrir: rdt-client respondía (con error),
+así que Radarr no lo consideró caído. Y como los ítems fallidos quedaban en la
+categoría `radarr` de rdt-client, Radarr los veía "en cola" y no buscaba más.
+**Renovar la cuenta sola no destraba nada.**
+
+**Evidencia.** `config/rdtclient/rdtclient_00*.log` (Permission denied, 429).
+Estado de la cuenta sin imprimir el token:
+
+```bash
+T=$(python3 -c "import sqlite3;c=sqlite3.connect('file:config/rdtclient/rdtclient.db?mode=ro',uri=True);print(c.execute(\"select Value from Settings where SettingId='Provider:ApiKey'\").fetchone()[0])")
+curl -s -H "Authorization: Bearer $T" https://api.real-debrid.com/rest/1.0/user \
+  | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['type'],d['expiration'])"
+```
+
+**Solución.**
+1. Renovar premium (vence de nuevo el **2027-04-23**).
+2. Backup de `rdtclient.db` y de la cola de Radarr.
+3. Sacar los ítems de la cola de Radarr (`DELETE /api/v3/queue/bulk`) con
+   `removeFromClient=true`, **`blocklist=false`** (los releases no tenían nada
+   malo, era la cuenta) y `skipRedownload=true`. Así rdt-client quedó en 0
+   sin tocar su base a mano.
+4. Buscar las películas **de a una**, para no repetir la ráfaga contra la API.
+   Un release vino con `Infringing file` (ver entrada del 2026-09-27): ese sí
+   con blocklist.
+5. La descarga local de *Mask of the Phantasm* (RD → VM) se quedó trabada en
+   38% sin errores en el log. `docker compose restart rdtclient` la destrabó y
+   se importó bien.
+
+Resultado: *Mask of the Phantasm* y *Knightfall Part 1* importadas.
+*Knightfall Part 2* (digital 2026-12-08) y *Part 3* (sin fecha) todavía no
+salieron: quedan monitoreadas y Radarr las agarra por RSS cuando aparezcan.
+
+**Prevención — PENDIENTE: alarma.** Hoy nos enteramos mirando la UI de RD. Hay
+que sumar algo que avise solo. Ideas, sin implementar todavía:
+- **Radarr/Sonarr → Settings → Connect**: notificación (ntfy, Telegram,
+  Discord, email) con *On Health Issue* y *On Manual Interaction Required*.
+  Cubre "download client con error" desde los propios *arr
+  ([wiki.servarr.com — Connect](https://wiki.servarr.com/radarr/settings#connect)).
+- **Script + cron** que consulte la API de RD (`/user`: `type` y días hasta
+  `expiration`) y cuente `Permission denied` / `429` en el log de rdt-client.
+  Que avise si la cuenta no es premium, si vence en menos de 15 días o si hay
+  errores.
+- Revisar que la cola de Radarr/Sonarr no tenga ítems en `warning`/`error`
+  hace más de X horas, y que ninguna descarga de rdt-client quede sin crecer
+  (el caso del 38%).
+
+---
+
 ## 2026-10-17 — No se puede entrar a Seerr (Jellyfin sí anda)
 
 **Síntoma.** El login en Seerr con el usuario de Jellyfin falla, aunque esas
@@ -349,3 +417,6 @@ Completed" activado, así que limpian solos cuando se alcanza el límite
 - La migración a Prowlarr resolvería los dos puntos anteriores, pero **está en
   pausa por decisión (2026-09-28)**. Ver `docs/prowlarr-migration-plan.md`.
 - "Allowed Hosts" sin configurar en Sonarr/Radarr (warning).
+- **Sin alarmas**: si Real-Debrid vence o un download client empieza a fallar,
+  nadie se entera hasta mirar la UI. Ver ideas en la entrada del 2026-10-25.
+  Real-Debrid premium vence el **2027-04-23**.

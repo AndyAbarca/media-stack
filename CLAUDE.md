@@ -61,6 +61,10 @@ downloader adicional. 12 containers en total.
 - Categorías mal mapeadas en indexers de Jackett y URLs con la IP del host en
   vez de `jackett:9117`.
 - "Allowed Hosts" sin configurar en Sonarr/Radarr (warning).
+- **Sin alarmas/monitoreo**: si Real-Debrid deja de ser premium, rdt-client
+  falla con `Permission denied`, Radarr prueba release tras release y la API
+  devuelve 429 (incidente 2026-10-25). Sumar un aviso: Connect en los *arr y/o
+  un script con cron contra la API de RD. RD premium vence el 2027-04-23.
 - Riesgo aceptado: Bluray-1080p sin tamaño máximo en Radarr.
 - Opcional: perfil de Bazarr "English" tiene `en` + `ea`; sumar `es` si se
   acepta castellano. CF MULTi sin puntaje en "HD-1080p".
