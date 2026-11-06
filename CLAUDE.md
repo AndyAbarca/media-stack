@@ -43,6 +43,9 @@ downloader adicional. 12 containers en total.
   `downloading`/`warning`). Lo resuelve `scripts/rd-watch.py`: detecta por
   falta de avance (3 chequeos) o solo-rechazos y pasa la película a
   qBittorrent con el release de más seeders (2026-11-05, ver TROUBLESHOOTING).
+- **qBittorrent** (2026-11-05): seeding 48 h y después **Stop** (no Remove),
+  sin límite por inactividad. El borrado lo hacen Radarr/Sonarr con *Remove
+  Completed* (activo en todos los clientes) después del import por hardlink.
 - **Radarr** (2026-09-28): perfiles "Any" y "HD-1080p" topean en Bluray-1080p
   (sin Remux ni 2160p); "Any" tiene Language=Any + CF "MULTi / Dual Audio"
   (+100). Seerr pide todo con el perfil "Any". Sonarr y Radarr con Minimum
@@ -72,8 +75,6 @@ downloader adicional. 12 containers en total.
   `rd-watch.py` actúa sobre releases trabados/rechazados pero no avisa.
 - `rd-watch.py`: activar el cron (`fix --yes` cada 10 min) y sumar Sonarr
   (hoy solo Radarr).
-- qBittorrent con `ShareLimitAction=Remove` (error en Radarr). Hoy inofensivo
-  (sin límite de ratio/seeding configurado); TRaSH recomienda no borrar.
 - Riesgo aceptado: Bluray-1080p sin tamaño máximo en Radarr.
 - Opcional: perfil de Bazarr "English" tiene `en` + `ea`; sumar `es` si se
   acepta castellano. CF MULTi sin puntaje en "HD-1080p".

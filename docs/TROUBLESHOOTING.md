@@ -94,6 +94,24 @@ Ninguno coincide con lo que reporta rdt-client. Se hizo rollback completo.
 - Por ahora solo Radarr. Los rechazos que ya no están en la cola de Radarr
   (filas sueltas en rdt-client) solo se listan: borrarlos desde la UI `:6500`.
 
+**Seeding en qBittorrent (mismo día).** Radarr marcaba error: *"qBittorrent
+is configured to remove torrents when they reach their Share Ratio Limit"*.
+Había `ShareLimitAction=Remove` con **24 h de seeding y 24 h de inactividad**
+(`GlobalMaxSeedingMinutes=1440`, `GlobalMaxInactiveSeedingMinutes=1440`):
+qBittorrent borraba el torrent él solo y, si el import todavía no había
+pasado, Radarr se quedaba sin archivo. Además, `Remove` sin contenido dejaba
+los archivos sueltos en `data/torrents`.
+Ojo al buscarlo: `grep SeedingTime` no matchea `SeedingMinutes`.
+
+Cambio (por la API, `POST /api/v2/app/setPreferences`, porque qBittorrent
+reescribe el `.conf` al apagarse): 48 h de seeding (`max_seeding_time=2880`),
+sin límite por inactividad y acción **Stop** (`max_ratio_act=0`). El borrado
+lo hacen Radarr/Sonarr con *Remove Completed* (ya activo en todos los
+clientes), que solo borran lo ya importado; como el import es hardlink
+(`links=2`), la biblioteca no se toca. Es lo que recomienda TRaSH
+([trash-guides.info — qBittorrent](https://trash-guides.info/Downloaders/qBittorrent/Basic-Setup/)).
+Verificado: las dos alertas de qBittorrent desaparecieron del Health de Radarr.
+
 ---
 
 ## 2026-10-25 — Real-Debrid vencido: muchas versiones de la misma peli + 429
@@ -494,9 +512,3 @@ Completed" activado, así que limpian solos cuando se alcanza el límite
   Real-Debrid premium vence el **2027-04-23**. `scripts/rd-watch.py` cubre el
   caso "release trabado / rechazado en RD" (2026-11-05), pero no avisa: actúa.
 - `rd-watch.py` solo cubre Radarr; falta Sonarr (releases por episodio/temporada).
-- qBittorrent tiene `ShareLimitAction=Remove` (Radarr: *"qBittorrent is
-  configured to remove torrents when they reach their Share Ratio Limit"*).
-  Hoy no se dispara porque no hay límite de ratio ni de seeding configurado,
-  pero si alguien lo configura, qBittorrent podría borrar una descarga antes
-  del import. TRaSH recomienda que no borre
-  ([trash-guides.info — qBittorrent](https://trash-guides.info/Downloaders/qBittorrent/Basic-Setup/)).
