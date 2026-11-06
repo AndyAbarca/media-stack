@@ -73,8 +73,9 @@ downloader adicional. 12 containers en total.
   devuelve 429 (incidente 2026-10-25). Sumar un aviso: Connect en los *arr y/o
   un script con cron contra la API de RD. RD premium vence el 2027-04-23.
   `rd-watch.py` actúa sobre releases trabados/rechazados pero no avisa.
-- `rd-watch.py`: activar el cron (`fix --yes` cada 10 min) y sumar Sonarr
-  (hoy solo Radarr).
+- `rd-watch.py`: sumar Sonarr (hoy solo Radarr). El cron ya está activo
+  (2026-11-05, crontab de andy_dell, `fix --yes` cada 10 min; errores en
+  `config/rd-watch/cron-errores.log`). En la migración, re-crear el crontab.
 - Riesgo aceptado: Bluray-1080p sin tamaño máximo en Radarr.
 - Opcional: perfil de Bazarr "English" tiene `en` + `ea`; sumar `es` si se
   acepta castellano. CF MULTi sin puntaje en "HD-1080p".
@@ -144,7 +145,9 @@ downloader adicional. 12 containers en total.
 4. Confirmar que existe `/dev/net/tun` (gluetun) y que el usuario del host es
    UID/GID 1000.
 5. Repetir el chequeo de puertos (regla abajo) en la máquina nueva.
-6. Actualizar "Estado actual" de este archivo y re-subir el kit de Claude
+6. Re-crear el crontab de `scripts/rd-watch.py` (vive en el crontab del
+   usuario, no en el repo).
+7. Actualizar "Estado actual" de este archivo y re-subir el kit de Claude
    Desktop.
 
 ## Claude Desktop (Windows)
