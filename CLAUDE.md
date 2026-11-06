@@ -19,12 +19,25 @@ downloader adicional. 12 containers en total.
   cambios concretos. Nunca un one-liner pelado.
 - Push siempre con `git push origin main` (ver Git abajo).
 
-## Estado actual (verificado 2026-10-15)
+## Estado actual (verificado 2026-11-06)
 - Fase: armado y testeo en VM de Linux Mint (lab de DevOps), host `andy-dell`,
   IP `192.168.68.57`, path `/home/andy_dell/HomeLab/Streaming`. Los 12
-  containers arriba; gluetun y rdtclient healthy.
-- Plan: una vez estable, migrar a banco de pruebas físico (AMD FX-8350). Ver
-  checklist más abajo.
+  containers arriba; rdtclient healthy. **gluetun unhealthy desde 2026-11-05
+  23:58**: WireGuard conecta pero no pasa tráfico (`lookup ... i/o timeout`),
+  la red del host anda bien → sospecha del lado ProtonVPN (clave/dispositivo/
+  cuenta). qBittorrent queda sin salida (el kill-switch evita fugas); rdtclient
+  no pasa por gluetun y sigue andando. Sin diagnosticar todavía.
+- Migración en curso al host **batcave** (`ssh batcave`, usuario `batman`,
+  IP `192.168.68.55`; ver checklist de migración más abajo). M1 hecho
+  (2026-11-06): repo clonado en `/opt/media-stack` (remote solo `origin`,
+  sin `upstream`), `.env` copiado
+  (600) con `DATA_DIR=/srv/data/Streaming` y `HOST_IP=192.168.68.55`;
+  `CONFIG_DIR=./config`. `/srv` es `/dev/sdb1` (220 GB), mismo filesystem
+  que `DATA_DIR` → los hardlinks se pueden preservar. Sin containers
+  levantados, sin `config/` ni datos copiados. `batman` no está en el grupo
+  `docker` (sí en `sudo`); en batcave no hay `xxd` (usar `od`).
+- La IP del host vive en el `.env` (`HOST_IP`, obligatoria vía `:?` en el
+  compose); cada host tiene la suya.
 - El Jellyfin nativo (apt) de esta VM ya fue desinstalado — el único Jellyfin
   válido es el del contenedor.
 - **Gluetun** (ProtonVPN, Wireguard): qBittorrent corre con
