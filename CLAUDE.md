@@ -36,9 +36,13 @@ downloader adicional. 12 containers en total.
   (2026-09-28): Download path y **Mapped path = `/data/torrents`** (absoluto,
   es lo que ve Sonarr/Radarr), Connection Timeout 30000, 2 conexiones por
   descarga, Minimum free space 2 GB. Sus imports son *moves* atómicos, no
-  hardlinks (Real-Debrid seedea, rdtclient no). Real-Debrid a veces rechaza
-  releases con "Infringing file": sacarlos de la cola con blocklist y elegir
-  otro.
+  hardlinks (Real-Debrid seedea, rdtclient no). Real-Debrid rechaza con
+  "Infringing file" justo los releases **más seedeados**, y en estrenos le
+  quedan los de 0 seeders, que se traban en `magnet_conversion`. Radarr no ve
+  ninguno de los dos casos como fallido (rdt-client los reporta como
+  `downloading`/`warning`). Lo resuelve `scripts/rd-watch.py`: detecta por
+  falta de avance (3 chequeos) o solo-rechazos y pasa la película a
+  qBittorrent con el release de más seeders (2026-11-05, ver TROUBLESHOOTING).
 - **Radarr** (2026-09-28): perfiles "Any" y "HD-1080p" topean en Bluray-1080p
   (sin Remux ni 2160p); "Any" tiene Language=Any + CF "MULTi / Dual Audio"
   (+100). Seerr pide todo con el perfil "Any". Sonarr y Radarr con Minimum
@@ -65,6 +69,11 @@ downloader adicional. 12 containers en total.
   falla con `Permission denied`, Radarr prueba release tras release y la API
   devuelve 429 (incidente 2026-10-25). Sumar un aviso: Connect en los *arr y/o
   un script con cron contra la API de RD. RD premium vence el 2027-04-23.
+  `rd-watch.py` actúa sobre releases trabados/rechazados pero no avisa.
+- `rd-watch.py`: activar el cron (`fix --yes` cada 10 min) y sumar Sonarr
+  (hoy solo Radarr).
+- qBittorrent con `ShareLimitAction=Remove` (error en Radarr). Hoy inofensivo
+  (sin límite de ratio/seeding configurado); TRaSH recomienda no borrar.
 - Riesgo aceptado: Bluray-1080p sin tamaño máximo en Radarr.
 - Opcional: perfil de Bazarr "English" tiene `en` + `ea`; sumar `es` si se
   acepta castellano. CF MULTi sin puntaje en "HD-1080p".
@@ -103,6 +112,10 @@ downloader adicional. 12 containers en total.
   planificó (`docs/prowlarr-migration-plan.md`), pero **está en pausa por
   decisión del usuario (2026-09-28)**. No instalar Prowlarr ni proponerlo de
   nuevo salvo que se pida.
+- Descargas trabadas de rdt-client: script propio `scripts/rd-watch.py`, no
+  Decluttarr. Decluttarr se probó (2026-11-05) y no detecta los estados que
+  reporta rdt-client (sus jobs exigen `queued`/`failed`/mensajes de qBittorrent
+  real). No proponerlo de nuevo salvo que cambie eso upstream.
 - Layout TRaSH Guides: un solo volumen `/data` compartido entre qBittorrent,
   rdt-client y los *arr, para hardlinks + moves atómicos
   (`docs/DATA_LAYOUT.md`).
@@ -144,6 +157,7 @@ re-subirlos.
 - docker compose pull && docker compose up -d
 - bash scripts/init-data-dirs.sh (una sola vez, idempotente)
 - bash scripts/configure-base-urls.sh (post-boot, idempotente)
+- ./scripts/rd-watch.py status (solo lectura) / fix [--yes]
 
 ## Reglas para vos (Claude)
 - No corras `docker compose down -v` ni borres nada bajo data/ o config/ sin

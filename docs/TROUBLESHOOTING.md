@@ -24,6 +24,78 @@ stat -c '%i links=%h %n' <archivo>
 
 ---
 
+## 2026-11-05 — Resident Evil "trabado" en RD: magnet sin seeders + Infringing
+
+**Síntoma.** Se pidió *Resident Evil (2026)* desde Seerr. En rdt-client un
+release queda en `magnet_conversion 0%` durante más de 40 min, y hay otros 3
+con error. En Radarr los 4 figuran "descargando" y no pasa nada más.
+
+**Causa.** Dos problemas que se suman:
+
+1. **RD rechaza los releases populares.** Radarr mandó 4 releases en 6 s: 3
+   volvieron con `RDNET.RealDebridException: Infringing file` y el único que RD
+   aceptó (`...V3SP4EV3R`) tenía **0 seeders**. Sin peers, RD no consigue la
+   metadata del magnet y se queda en `magnet_conversion` (estados de la API:
+   https://api.real-debrid.com/). Al hacer la búsqueda interactiva se vio el
+   patrón: **los 5 releases con más seeders (de 385 a 5727) eran justo los
+   Infringing**. Para un estreno, a RD le quedan los que casi nadie comparte.
+2. **Radarr no ve los errores de rdt-client.** rdt-client imita la API de
+   qBittorrent, pero traduce `magnet_conversion` como un `downloading` normal
+   (size 0, sin mensaje) y los rechazos como `warning` + "qBittorrent is
+   reporting an error". Radarr nunca los da por fallidos, así que no activa
+   Failed Download Handling ni prueba qBittorrent (Priority 2). Los Infringing
+   ni siquiera quedan como `grabbed` en el historial, así que **no se pueden
+   mandar a la blocklist**: en cada búsqueda nueva Radarr los vuelve a mandar.
+
+`TorrentLifetime` de rdt-client (estaba en 0 = sin límite) **no lo arregla**:
+según `TorrentRunner.cs`, cuenta desde `Added` sin mirar el estado de RD
+(cortaría también descargas lentas que avanzan) y el resultado es otro
+`warning` que Radarr tampoco procesa.
+
+**Evidencia.**
+
+```bash
+# Estado de RD de cada torrent (read-only)
+python3 -c "import sqlite3;c=sqlite3.connect('file:config/rdtclient/rdtclient.db?mode=ro',uri=True);[print(r) for r in c.execute(\"select RdName,RdStatusRaw,RdSeeders,RdProgress,Error from Torrents where RdName like '%esident%'\")]"
+# Cómo los ve Radarr: status, size y errorMessage
+key=$(grep -oP '(?<=<ApiKey>)[^<]+' config/radarr/config.xml)
+curl -s -H "X-Api-Key: $key" "http://localhost/radarr/api/v3/queue?pageSize=50" \
+  | python3 -c "import sys,json;[print(r['status'],r['size'],r.get('errorMessage'),r['title']) for r in json.load(sys.stdin)['records']]"
+```
+
+**Decluttarr: probado y descartado.** Se levantó en `test_run` con
+`remove_metadata_missing` + `detect_via_missing_size`. Conectó bien, pero no
+marcó nada. En su código (`/app/src/jobs/`) cada job busca una combinación
+exacta: `detect_via_missing_size` exige `status == "queued"` (rdt-client
+reporta `downloading`), `remove_stalled` exige el mensaje "The download is
+stalled with no connections", `remove_failed_downloads` exige `failed`.
+Ninguno coincide con lo que reporta rdt-client. Se hizo rollback completo.
+
+**Solución.**
+1. Sacar de la cola los items de rdt-client de la película
+   (`DELETE /api/v3/queue/bulk`, `removeFromClient=true`): el trabado con
+   `blocklist=true`, los Infringing con `blocklist=false` (no tienen grab que
+   bloquear), y **`skipRedownload=true`** para que Radarr no vuelva a probar
+   con RD. Sin `skipRedownload`, la búsqueda automática volvió a mandar los
+   mismos Infringing y otro release muerto (`...CSP`, 0 seeders).
+2. Búsqueda interactiva (`GET /api/v3/release?movieId=27`) y grab del release
+   aprobado con más seeders **forzando qBittorrent**:
+   `POST /api/v3/release` con `{guid, indexerId, downloadClientId: 1}`.
+3. Bajó por gluetun a ~2 MB/s y se importó a los ~10 min.
+
+**Prevención.** `scripts/rd-watch.py` automatiza los pasos 1 y 2:
+- `status`: tabla con estado de RD, seeders, progreso y strikes (solo lectura).
+- `fix [--yes]`: en cada corrida anota el progreso de RD. Un release que no
+  avanza en 3 chequeos seguidos (≥ 8 min entre sí) se da por muerto; si avanza
+  aunque sea poco, los strikes vuelven a 0. Una película con un release muerto
+  o con solo rechazos (> 5 min) pasa a qBittorrent con el release aprobado de
+  más seeders (mínimo 5). Si ya tiene una descarga por qBittorrent, no se toca.
+- Estado y log en `config/rd-watch/`. Pensado para cron cada 10 min.
+- Por ahora solo Radarr. Los rechazos que ya no están en la cola de Radarr
+  (filas sueltas en rdt-client) solo se listan: borrarlos desde la UI `:6500`.
+
+---
+
 ## 2026-10-25 — Real-Debrid vencido: muchas versiones de la misma peli + 429
 
 **Síntoma.** Se pidieron las películas de Batman desde Seerr. En rdt-client
@@ -419,4 +491,12 @@ Completed" activado, así que limpian solos cuando se alcanza el límite
 - "Allowed Hosts" sin configurar en Sonarr/Radarr (warning).
 - **Sin alarmas**: si Real-Debrid vence o un download client empieza a fallar,
   nadie se entera hasta mirar la UI. Ver ideas en la entrada del 2026-10-25.
-  Real-Debrid premium vence el **2027-04-23**.
+  Real-Debrid premium vence el **2027-04-23**. `scripts/rd-watch.py` cubre el
+  caso "release trabado / rechazado en RD" (2026-11-05), pero no avisa: actúa.
+- `rd-watch.py` solo cubre Radarr; falta Sonarr (releases por episodio/temporada).
+- qBittorrent tiene `ShareLimitAction=Remove` (Radarr: *"qBittorrent is
+  configured to remove torrents when they reach their Share Ratio Limit"*).
+  Hoy no se dispara porque no hay límite de ratio ni de seeding configurado,
+  pero si alguien lo configura, qBittorrent podría borrar una descarga antes
+  del import. TRaSH recomienda que no borre
+  ([trash-guides.info — qBittorrent](https://trash-guides.info/Downloaders/qBittorrent/Basic-Setup/)).
