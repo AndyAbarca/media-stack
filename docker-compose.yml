@@ -206,7 +206,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=America/Argentina/Mendoza
-      - JELLYFIN_PublishedServerUrl=http://192.168.68.57:8096
+      - JELLYFIN_PublishedServerUrl=http://${HOST_IP}:8096
     volumes:
       - ${CONFIG_DIR:-./config}/jellyfin:/config
       # Jellyfin solo escanea la biblioteca final.
@@ -240,7 +240,7 @@ services:
       - PGID=1000
       - TZ=America/Argentina/Mendoza
       - APPLICATION_ROOT=/wizarr
-      - APP_URL=http://192.168.68.57
+      - APP_URL=http://${HOST_IP}
     volumes:
       - ${CONFIG_DIR:-./config}/wizarr:/config
     networks:

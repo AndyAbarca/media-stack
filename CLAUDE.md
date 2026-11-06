@@ -92,8 +92,6 @@ downloader adicional. 12 containers en total.
   - `scripts/configure-base-urls.sh` (log final).
 - `.env.example` documenta `SERVER_COUNTRIES` (con `Argentina`), pero el
   compose tiene `Netherlands` hardcodeado y no usa `${SERVER_COUNTRIES}`.
-- IP `192.168.68.57` hardcodeada en el compose
-  (`JELLYFIN_PublishedServerUrl` y `APP_URL` de wizarr).
 - `.gitignore` tiene `data/` (con barra), que no matchea el symlink `data` →
   aparece como untracked. Nunca usar `git add -A` / `git add .`; agregar
   archivos por nombre.
@@ -122,7 +120,8 @@ downloader adicional. 12 containers en total.
   rdt-client y los *arr, para hardlinks + moves atómicos
   (`docs/DATA_LAYOUT.md`).
 - PUID/PGID=1000, TZ=America/Argentina/Mendoza — hardcodeados por servicio en
-  el compose. Las únicas env vars reales son `CONFIG_DIR`, `DATA_DIR` y
+  el compose. Las únicas env vars reales son `CONFIG_DIR`, `DATA_DIR`,
+  `HOST_IP` (IP de LAN del host, para Jellyfin y wizarr) y
   `PROTONVPN_WG_PRIVATE_KEY`.
 - Detrás de Caddy (`:80`, subpath): `/sonarr`, `/radarr`, `/bazarr`,
   `/jellyseerr`, `/wizarr`. Caddyfile en `./caddy/Caddyfile`, `auto_https off`.
@@ -138,7 +137,7 @@ downloader adicional. 12 containers en total.
   el usuario lo pida.
 
 ## Migración al FX-8350 — checklist
-1. Cambiar la IP hardcodeada del compose (Jellyfin y wizarr) a la nueva.
+1. Setear `HOST_IP` en el `.env` del host nuevo (Jellyfin y wizarr la usan).
 2. Ajustar `CONFIG_DIR` / `DATA_DIR` en `.env` si cambian las rutas.
 3. Copiar `config/` y `data/` **preservando hardlinks** (`rsync -aH`). Copiar
    sin `-H` ya duplicó archivos una vez (10/9, al mover `./data`).
